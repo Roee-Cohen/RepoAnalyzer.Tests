@@ -94,5 +94,54 @@ namespace RepoAnalyzer.Tests
             Assert.Equal(1, favorites.Count);
             Assert.Equal(favorites[0].AnalysisId, analysis1.Id);
         }
+
+        [Fact]
+        public async Task GetUserFavorites_NoFavorites_ReturnsEmpty()
+        {
+            // Arrange
+            var db = CreateDbContext();
+            var service = new FavoritesService(db);
+
+            // Act
+            var favorites = (await service.GetFavoritesAsync("ghost-user")).ToList();
+
+            // Assert
+            Assert.Empty(favorites);
+        }
+
+        [Fact]
+        public async Task AddFavorite_DuplicateFavorite_DoesNotCreateDuplicate()
+        {
+            // Arrange
+            var db = CreateDbContext();
+            var service = new FavoritesService(db);
+
+            var analysis = new RepoAnalysis
+            {
+                Id = Guid.NewGuid(),
+                RepoId = "repo-dup",
+                UserId = "user1",
+                AnalyzedAt = DateTime.UtcNow
+            };
+
+            var entity = new RepoFavoritedEvent
+            {
+                UserId = analysis.UserId,
+                RepoId = analysis.RepoId,
+                Name = "Duplicate Repo",
+                Owner = "Someone",
+                Stars = 10,
+                UpdatedAt = DateTime.UtcNow
+            };
+
+            // Act
+            await service.AddFavoriteAsync(entity, analysis);
+            await service.AddFavoriteAsync(entity, analysis); // try adding again
+            var favorites = (await service.GetFavoritesAsync("user1")).ToList();
+
+            // Assert
+            Assert.Single(favorites); // only one should exist
+            Assert.Equal("repo-dup", favorites[0].RepoId);
+        }
     }
 }
